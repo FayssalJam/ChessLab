@@ -22,10 +22,12 @@ Version statique : `npm run build` produit `dist/`, servi par n'importe quel ser
 
 ## Premier réglage
 
+Commencez par **Se connecter avec Lichess** (en haut à droite) : l'explorateur d'ouvertures de Lichess exige désormais un compte. La connexion passe par OAuth (PKCE) directement depuis le navigateur, sans aucune permission demandée. Depuis la fenêtre du compte, vous pouvez régler « Mon niveau » sur votre Elo. La vue **Ouvertures → 📊 Par niveau** montre, pour la position affichée, les coups les plus joués (et leur score) dans chaque tranche Elo, de moins de 1000 à 2500+.
+
 Dans l'onglet **Ouvertures**, réglez votre plage Elo (« Mon niveau ») et, si vous voulez comparer, le « Niveau cible ». Puis, dans **⚙ Réglages**, renseignez :
 
 - les cadences et votre couleur principale.
-- un **jeton d'API Lichess**, si l'explorateur exige une connexion. Créez-le sur <https://lichess.org/account/oauth/token> sans cocher aucune permission. Il reste dans votre navigateur (localStorage).
+- (alternative à la connexion) un **jeton d'API Lichess** personnel, créé sur <https://lichess.org/account/oauth/token> sans cocher aucune permission. Il reste dans votre navigateur (localStorage).
 
 ## Méthode de travail conseillée
 
@@ -44,6 +46,7 @@ Dans l'onglet **Ouvertures**, réglez votre plage Elo (« Mon niveau ») et, si 
 | `src/tree-view.js` | arbre d'ouverture en SVG (mise en page compacte, sphères 3D, infobulles) |
 | `src/openings.js` | bibliothèque des ouvertures |
 | `src/components/range-slider.js` | curseur double de plage Elo |
+| `src/lichess.js` | connexion OAuth Lichess (PKCE) et profil du joueur |
 | `src/explorer.js` | client de l'explorateur Lichess (cache, limite de débit, comparaison par niveau) |
 | `src/repertoire.js` | construction de l'arbre, export PGN, répétition espacée |
 | `src/engine.js` | Stockfish dans un Web Worker (MultiPV, Elo limité) |

@@ -377,3 +377,23 @@ dialog label { display: block; margin: 10px 0 3px; font-weight: 600; font-size: 
 .progress { height: 6px; background: rgba(255, 255, 255, .08); border-radius: 3px; overflow: hidden; margin: 8px 0; }
 .progress > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--target)); width: 0; transition: width .2s; }
 @media (max-width: 700px) { .xp-tree { height: 460px; } .xp-tree-title b { font-size: 1.6rem; } }
+
+/* --- Compte Lichess ------------------------------------------------------ */
+#account-btn { margin-left: auto; }
+.chip { display: inline-flex; gap: 4px; align-items: baseline; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: .9em; }
+
+
+/* --- Vue « Par niveau » --------------------------------------------------- */
+.lv-scroll { overflow-x: auto; margin-top: 10px; }
+.lv-table { width: 100%; border-collapse: separate; border-spacing: 3px; font-variant-numeric: tabular-nums; }
+.lv-table th { font-weight: 500; color: var(--muted); font-size: .8rem; text-align: center; }
+.lv-table th.lv-band { text-align: left; white-space: nowrap; padding-right: 8px; color: var(--text); }
+.lv-band.lv-my { color: var(--accent); }
+.lv-band.lv-target { color: var(--target); }
+.lv-move { font: 600 .95rem var(--display); padding: 3px 10px; width: 100%; }
+.lv-cell { text-align: center; border-radius: 8px; padding: 4px 6px; background: rgba(74, 222, 128, calc(var(--a, 0) * 0.35)); border: 1px solid transparent; line-height: 1.15; }
+.lv-cell b { display: block; font-size: .95rem; }
+.lv-cell span { font-size: .72rem; }
+.lv-cell.lv-top { border-color: var(--border-strong); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
+.lv-n { text-align: right; font-size: .8rem; white-space: nowrap; }
+.lv-wait { height: 34px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.09), rgba(255,255,255,.04)); background-size: 200% 100%; animation: shimmer 1.2s infinite; }

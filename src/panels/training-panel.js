@@ -156,7 +156,7 @@ export const trainingPanel = {
       this.t0 = Date.now();
       this.runner.start({ id: `lichess:${theme}:${data.puzzle.id}`, title: LICHESS_THEMES[theme], fen, type: 'line', solution: sol, theme });
     } catch (e) {
-      msg.innerHTML = `<span class="err">Impossible de charger un puzzle (${e.message}).</span> Utilisez la reconnaissance éclair hors ligne, ou ajoutez un jeton Lichess dans ⚙.`;
+      msg.innerHTML = `<span class="err">Impossible de charger un puzzle (${e.message}).</span> Utilisez la reconnaissance éclair hors ligne, ou connectez-vous à Lichess (en haut à droite).`;
     }
   },
 

@@ -2,8 +2,8 @@
 // comparaison avec un niveau cible, flèches sur l'échiquier et bibliothèque des ouvertures.
 import { Chessground } from 'chessground';
 import { Chess } from 'chess.js';
-import { explore, peek, candidates, total, ExplorerError } from '../explorer.js';
-import { settings, saveSettings, myBands, higherBands, rangeLabel } from '../settings.js';
+import { explore, peek, candidates, total, scoreFor, ExplorerError } from '../explorer.js';
+import { settings, saveSettings, myBands, higherBands, rangeLabel, RATING_BANDS } from '../settings.js';
 import { setMine, mineAt } from '../repertoire.js';
 import { rangeSlider } from '../components/range-slider.js';
 import { OpeningTree } from '../tree-view.js';
@@ -27,6 +27,7 @@ export const explorerPanel = {
           <h2 class="xp-h">Explorateur d'ouvertures</h2>
           <div class="seg" id="xp-view">
             <button data-v="tree" class="on">🌳 Arbre</button>
+            <button data-v="levels">📊 Par niveau</button>
             <button data-v="lib">📚 Bibliothèque</button>
           </div>
         </div>
@@ -70,6 +71,8 @@ export const explorerPanel = {
         </div>
       </div>
 
+      <div id="xp-levels-view" class="glass xp-now" style="display:none"></div>
+
       <div id="xp-lib-view" style="display:none">
         <div class="glass xp-lib-head">
           <div class="seg small" id="xp-lib-filter">
@@ -109,14 +112,23 @@ export const explorerPanel = {
     this.treeTarget = new OpeningTree($('#xp-tree-target'), { ratings: higherBands, accent: TARGET, mirror: true, onNavigate: nav });
   },
 
-  show() { this.refreshAll(); },
+  show() {
+    // Les plages ont pu changer ailleurs (ex. Elo du compte Lichess).
+    this.rsMy.set(settings.myRange);
+    this.rsTarget.set(settings.targetRange);
+    this.refreshAll();
+  },
   hide() { this.app.setShapes([]); },
-  position() { if (this.view === 'tree') this.refreshTree(); },
+  position() {
+    if (this.view === 'tree') this.refreshTree();
+    else if (this.view === 'levels') this.renderLevels();
+  },
 
   setView(v) {
     this.view = v;
     this.el.querySelectorAll('#xp-view button').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
     this.el.querySelector('#xp-tree-view').style.display = v === 'tree' ? '' : 'none';
+    this.el.querySelector('#xp-levels-view').style.display = v === 'levels' ? '' : 'none';
     this.el.querySelector('#xp-lib-view').style.display = v === 'lib' ? '' : 'none';
     this.refreshAll();
   },
@@ -132,7 +144,70 @@ export const explorerPanel = {
     $('#xp-neq').style.display = settings.compare ? '' : 'none';
     $('#xp-trees').classList.toggle('compare', settings.compare);
     if (this.view === 'tree') this.refreshTree();
+    else if (this.view === 'levels') this.renderLevels();
     else { this.app.setShapes([]); this.renderLib(); }
+  },
+
+  // --- Vue par niveau : les coups les plus joués dans chaque tranche Elo -------
+  async renderLevels() {
+    const fen = this.app.fen();
+    const req = (this.lvReq = (this.lvReq || 0) + 1);
+    const data = RATING_BANDS.map((b) => peek(fen, { ratings: [b] }));
+    const paint = (err) => { if (req === this.lvReq) this.paintLevels(fen, data, err); };
+    paint();
+    try {
+      await Promise.all(RATING_BANDS.map((b, i) => explore(fen, { ratings: [b] }).then((d) => { data[i] = d; paint(); })));
+    } catch (e) {
+      paint(e.message);
+    }
+  },
+
+  paintLevels(fen, data, err) {
+    const box = this.el.querySelector('#xp-levels-view');
+    const color = fen.split(' ')[1];
+    const opening = data.find((d) => d && d.opening);
+    document.getElementById('opening-name').textContent = opening ? `${opening.opening.eco} · ${opening.opening.name}` : '';
+    // Colonnes : les coups qui pèsent le plus, toutes tranches confondues (chaque tranche compte autant).
+    const weight = new Map();
+    for (const d of data) {
+      const n = total(d);
+      if (n) for (const m of d.moves) weight.set(m.san, (weight.get(m.san) || 0) + total(m) / n);
+    }
+    const cols = [...weight.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([san]) => san);
+    const inRange = (i, [a, b]) => i >= a && i < b;
+    const rows = RATING_BANDS.map((b, i) => {
+      const d = data[i];
+      const n = total(d);
+      const cls = inRange(i, settings.myRange) ? ' lv-my' : settings.compare && inRange(i, settings.targetRange) ? ' lv-target' : '';
+      const label = `<th class="lv-band${cls}">${rangeLabel([i, i + 1])}</th>`;
+      if (!d) return `<tr>${label}<td colspan="${cols.length + 1}"><div class="lv-wait"></div></td></tr>`;
+      const byS = new Map(d.moves.map((m) => [m.san, m]));
+      const top = d.moves.reduce((acc, m) => (!acc || total(m) > total(acc) ? m : acc), null);
+      return `<tr>${label}${cols.map((san) => {
+        const m = byS.get(san);
+        if (!m || !n) return '<td class="lv-cell muted">—</td>';
+        const share = total(m) / n;
+        const score = scoreFor(m, color);
+        const c = QUALITY[qualityIndex(score)];
+        return `<td class="lv-cell${top && top.san === san ? ' lv-top' : ''}" style="--a:${Math.min(1, share * 1.6).toFixed(2)}" title="${total(m).toLocaleString('fr-FR')} parties · score ${pct(score)}">
+          <b>${pct(share)}</b><span style="color:${c}">${pct(score)}</span></td>`;
+      }).join('')}<td class="lv-n muted">${n ? fmtN(n) : '0'}</td></tr>`;
+    }).join('');
+    box.innerHTML = `
+      <div class="now-head">
+        <div>
+          <div class="now-opening">${opening ? opening.opening.name : 'Position de départ'}</div>
+          <div class="muted small">Coups les plus joués à chaque niveau · trait aux ${color === 'w' ? 'Blancs' : 'Noirs'} · cadences : ${settings.speeds.join(', ')}</div>
+        </div>
+      </div>
+      ${err ? `<div class="err">${err}</div>` : ''}
+      ${cols.length || data.some((d) => !d) ? `<div class="lv-scroll"><table class="lv-table">
+        <thead><tr><th>Elo</th>${cols.map((san) => `<th><button class="lv-move" data-san="${san}">${prettySan(san)}</button></th>`).join('')}<th>Parties</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>` : '<p class="muted">Aucune partie dans cette position.</p>'}
+      <div class="muted small now-hint">Chaque case : part des parties où le coup est joué à ce niveau (gros chiffre) et score obtenu par celui qui le joue (couleur : rouge = faible, vert = excellent). Le coup favori de chaque niveau est encadré. Cliquez un coup pour le jouer.</div>`;
+    box.querySelectorAll('.lv-move').forEach((b) => (b.onclick = () => this.app.play(b.dataset.san)));
+    this.app.setShapes([]);
   },
 
   // --- Vue arbre --------------------------------------------------------------
@@ -170,7 +245,7 @@ export const explorerPanel = {
     const color = fen.split(' ')[1];
     const opening = (my && my.opening) || (target && target.opening);
     document.getElementById('opening-name').textContent = opening ? `${opening.eco} · ${opening.name}` : '';
-    if (err) { box.innerHTML = `<div class="err">${err}</div><p class="muted small">L'explorateur a besoin d'internet (explorer.lichess.ovh). Le scanner, le moteur et les cours fonctionnent hors ligne.</p>`; return; }
+    if (err) { box.innerHTML = `<div class="err">${err}</div><p class="muted small">L'explorateur a besoin d'internet (explorer.lichess.org). Le scanner, le moteur et les cours fonctionnent hors ligne.</p>`; return; }
     if (!my) { box.innerHTML = '<div class="skeleton"></div>'; return; }
     const n = total(my);
     const mode = settings.arrowMode;

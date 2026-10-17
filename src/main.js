@@ -3,7 +3,8 @@ import { Chess } from 'chess.js';
 import { Board } from './board.js';
 import { START_FEN, safeChess, moveNumberPrefix } from './core.js';
 import { engine, fmtScore, scoreCp, winChance } from './engine.js';
-import { settings, saveSettings, SPEEDS, rangeLabel } from './settings.js';
+import { settings, saveSettings, SPEEDS, rangeLabel, RATING_BANDS } from './settings.js';
+import { login, logout, handleRedirect, cachedAccount, refreshAccount, mainRating } from './lichess.js';
 import { explorerPanel } from './panels/explorer-panel.js';
 import { repertoirePanel } from './panels/repertoire-panel.js';
 import { analysisPanel } from './panels/analysis-panel.js';
@@ -209,8 +210,8 @@ $('#settings-btn').onclick = () => {
     <select id="s-color"><option value="w" ${settings.color === 'w' ? 'selected' : ''}>les Blancs</option><option value="b" ${settings.color === 'b' ? 'selected' : ''}>les Noirs</option></select>
     <label>Minimum de parties pour recommander un coup</label><input id="s-min" type="number" min="5" max="1000" value="${settings.minGames}">
     <label>Profondeur d'analyse Stockfish</label><input id="s-depth" type="number" min="8" max="30" value="${settings.engineDepth}">
-    <label>Jeton d'API Lichess (optionnel)</label><input id="s-token" type="password" value="${settings.token}" placeholder="lip_…" style="width:100%">
-    <p class="small muted">Si l'explorateur exige une connexion, créez un jeton sans permission sur lichess.org/account/oauth/token. Il reste dans votre navigateur.</p>
+    <label>Jeton d'API Lichess (avancé)</label><input id="s-token" type="password" value="${settings.token}" placeholder="lip_…" style="width:100%">
+    <p class="small muted">Rempli automatiquement par « Se connecter avec Lichess ». Vous pouvez aussi coller un jeton personnel sans permission (lichess.org/account/oauth/token). Il reste dans votre navigateur.</p>
     <div class="row" style="justify-content:flex-end"><button class="primary" id="s-ok">Enregistrer</button></div>`;
   d.showModal();
   $('#s-ok').onclick = () => {
@@ -222,11 +223,69 @@ $('#settings-btn').onclick = () => {
       token: $('#s-token').value.trim(),
     });
     d.close();
+    syncAccount();
     app.board.setOrientation(settings.color);
     app.toast('Réglages enregistrés');
     app.emit('position', app.fen());
   };
 };
+
+// --- Compte Lichess ---
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const PERFS = [['bullet', 'Bullet'], ['blitz', 'Blitz'], ['rapid', 'Rapide'], ['classical', 'Classique'], ['correspondence', 'Correspondance']];
+let account = cachedAccount();
+
+function renderAccountBtn() {
+  const b = $('#account-btn');
+  b.textContent = account ? '♞ ' + account.username : 'Se connecter avec Lichess';
+  b.classList.toggle('primary', !account && !settings.token);
+}
+
+/** Recharge le profil quand un jeton existe (connexion OAuth ou jeton collé à la main). */
+async function syncAccount() {
+  if (!settings.token) { account = null; renderAccountBtn(); return; }
+  try { account = await refreshAccount(); } catch (e) { account = cachedAccount(); if (!settings.token) app.toast(e.message); }
+  renderAccountBtn();
+}
+
+/** Règle « mon niveau » sur la tranche Elo du joueur, et le niveau cible un peu au-dessus. */
+function applyRating(rating) {
+  const i = RATING_BANDS.reduce((acc, b, k) => (rating >= b ? k : acc), 0);
+  saveSettings({ myRange: [i, i + 1], targetRange: [Math.min(i + 1, 8), Math.min(i + 3, 9)] });
+  app.toast(`Mon niveau : ${rangeLabel(settings.myRange)} · cible : ${rangeLabel(settings.targetRange)}`);
+  if (panels[active].show) panels[active].show();
+}
+
+function openAccount() {
+  if (!account && !settings.token) {
+    login().catch(() => app.toast('Connexion impossible dans ce navigateur.'));
+    return;
+  }
+  const d = $('#account-dlg');
+  const main = account && mainRating(account);
+  d.innerHTML = `<h2>Compte Lichess</h2>
+    ${account ? `<p><a href="${esc(account.url)}" target="_blank" rel="noopener"><b>${esc(account.username)}</b></a> est connecté. L'explorateur d'ouvertures et les puzzles utilisent votre compte.</p>
+    <div class="row">${PERFS.filter(([k]) => account.perfs[k] && account.perfs[k].games).map(([k, n]) => `<span class="chip">${n} <b>${account.perfs[k].rating}${account.perfs[k].prov ? '?' : ''}</b> <span class="muted">· ${account.perfs[k].games} p.</span></span>`).join('') || '<span class="muted small">Aucune partie classée.</span>'}</div>
+    ${main ? `<p><button id="acc-rating">Régler « mon niveau » sur mon Elo ${esc(main.speed)} (${main.rating})</button></p>` : ''}
+    <p class="small muted">Les coups les plus joués à chaque niveau sont dans <b>Ouvertures → 📊 Par niveau</b>.</p>` : '<p class="muted">Jeton enregistré, mais le profil est indisponible pour le moment.</p>'}
+    <div class="row" style="justify-content:space-between;margin-top:12px"><button id="acc-logout">Se déconnecter</button><button class="primary" id="acc-close">Fermer</button></div>`;
+  d.showModal();
+  $('#acc-close').onclick = () => d.close();
+  $('#acc-logout').onclick = async () => { await logout(); account = null; renderAccountBtn(); d.close(); app.toast('Déconnecté de Lichess'); };
+  if (main) $('#acc-rating').onclick = () => applyRating(main.rating);
+}
+$('#account-btn').onclick = openAccount;
+renderAccountBtn();
+handleRedirect()
+  .then((acc) => {
+    if (!acc) return syncAccount();
+    account = acc;
+    renderAccountBtn();
+    const main = mainRating(acc);
+    app.toast(`Connecté en tant que ${acc.username}` + (main ? ' — réglez votre niveau depuis votre compte' : ''), 4000);
+    if (panels[active].show) panels[active].show();
+  })
+  .catch((e) => { app.toast(e.message, 4000); renderAccountBtn(); });
 
 let first = 'explorer';
 try { first = localStorage.getItem('cc.tab') || 'explorer'; } catch { /* ignore */ }

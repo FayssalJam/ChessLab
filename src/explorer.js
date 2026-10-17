@@ -4,7 +4,7 @@ import { settings, myBands, higherBands, restore, store } from './settings.js';
 import { Chess } from 'chess.js';
 import { posKey } from './core.js';
 
-const BASE = 'https://explorer.lichess.ovh';
+const BASE = 'https://explorer.lichess.org';
 const CACHE_KEY = 'cc.explorer.cache.v1';
 const MAX_CACHE = 2500;
 
@@ -46,7 +46,7 @@ async function fetchJson(url) {
       throw new ExplorerError("Impossible de joindre l'explorateur Lichess (réseau ou blocage CORS).");
     }
     if (res.status === 429) { await new Promise((r) => setTimeout(r, 61000)); continue; }
-    if (res.status === 401 || res.status === 403) throw new ExplorerError("Lichess refuse la requête : ajoutez un jeton d'API personnel dans ⚙ Réglages (lichess.org/account/oauth/token, aucune permission nécessaire).");
+    if (res.status === 401 || res.status === 403) throw new ExplorerError("L'explorateur Lichess demande une connexion : cliquez sur « Se connecter avec Lichess » en haut à droite.");
     if (!res.ok) throw new ExplorerError(`Erreur explorateur ${res.status}`);
     return res.json();
   }
