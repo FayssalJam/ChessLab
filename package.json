@@ -1,0 +1,21 @@
+{
+  "name": "chesslab",
+  "version": "1.0.0",
+  "description": "Outil d'amélioration aux échecs : arbre d'ouvertures par niveau, scanner tactique, plans de pions, cours et entraînement.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "validate": "node scripts/validate-lessons.mjs"
+  },
+  "license": "GPL-3.0-only",
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "chessground": "^9.2.1",
+    "stockfish": "^19.0.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.21"
+  },
+  "type": "module"
+}

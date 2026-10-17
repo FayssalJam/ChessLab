@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ChessLab</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">♞ ChessLab</div>
+    <nav id="tabs">
+      <button data-tab="explorer" class="active">Ouvertures</button>
+      <button data-tab="repertoire">Mon répertoire</button>
+      <button data-tab="analysis">Scanner &amp; Plan</button>
+      <button data-tab="lessons">Cours</button>
+      <button data-tab="training">Entraînement</button>
+    </nav>
+    <button id="settings-btn" class="ghost" title="Réglages">⚙ Réglages</button>
+  </header>
+
+  <main class="layout">
+    <section class="board-col">
+      <div id="board-wrap"><div id="board" class="cg-wrap"></div></div>
+      <div id="eval-bar"><div id="eval-fill"></div><span id="eval-text"></span></div>
+      <div class="controls">
+        <button id="nav-start" title="Début">⏮</button>
+        <button id="nav-prev" title="Précédent (←)">◀</button>
+        <button id="nav-next" title="Suivant (→)">▶</button>
+        <button id="nav-end" title="Fin">⏭</button>
+        <button id="flip" title="Retourner l'échiquier (f)">⇅</button>
+        <button id="reset" title="Position initiale">↺</button>
+        <button id="load-btn" title="Charger FEN / PGN">📋 FEN/PGN</button>
+      </div>
+      <div id="opening-name" class="opening-name"></div>
+      <div id="moves" class="moves"></div>
+    </section>
+
+    <section class="panel-col">
+      <div id="panel-explorer" class="panel active"></div>
+      <div id="panel-repertoire" class="panel"></div>
+      <div id="panel-analysis" class="panel"></div>
+      <div id="panel-lessons" class="panel"></div>
+      <div id="panel-training" class="panel"></div>
+    </section>
+  </main>
+
+  <dialog id="settings-dlg"></dialog>
+  <dialog id="load-dlg"></dialog>
+  <dialog id="promo-dlg"></dialog>
+  <div id="toast"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
