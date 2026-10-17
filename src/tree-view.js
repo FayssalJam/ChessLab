@@ -161,14 +161,14 @@ export class OpeningTree {
       const owner = parent.depth;
       const gap = 2 * parent.depth + 1;
       const end = 2 * chain[chain.length - 1].depth;
+      const crossFree = (col) => { for (let x = 1; x < col; x++) if (!free(x, gap, owner)) return false; return true; };
+      const colFree = (col) => { for (let sl = gap; sl <= end; sl++) if (!free(col, sl, sl === gap ? owner : -1)) return false; return true; };
+      // Une colonne vide existe toujours en maxCol + 1. Si le connecteur horizontal ne peut éviter
+      // aucune branche (c'est le cas quand on revient en arrière dans la partie), on accepte qu'il en croise une.
       let col = 1;
-      for (;; col++) {
-        let ok = true;
-        for (let x = 1; x < col && ok; x++) ok = free(x, gap, owner);
-        for (let sl = gap; sl <= end && ok; sl++) ok = free(col, sl, sl === gap ? owner : -1);
-        if (ok) break;
-      }
-      for (let x = 1; x < col; x++) mark(x, gap, owner);
+      while (col <= maxCol + 1 && !(crossFree(col) && colFree(col))) col++;
+      if (col > maxCol + 1) { col = 1; while (!colFree(col)) col++; }
+      for (let x = 1; x < col; x++) if (free(x, gap, owner)) mark(x, gap, owner);
       for (let sl = gap; sl <= end; sl++) mark(col, sl, sl === gap ? owner : 'c' + col + ':' + sl);
       for (const n of chain) { n.col = col; maxDepth = Math.max(maxDepth, n.depth); }
       maxCol = Math.max(maxCol, col);
