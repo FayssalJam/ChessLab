@@ -2,7 +2,7 @@
 import { Chess } from 'chess.js';
 import { START_FEN, posKey } from './core.js';
 import { compare, explore, total } from './explorer.js';
-import { myBand, restore, store } from './settings.js';
+import { myBands, restore, store } from './settings.js';
 
 const KEY = 'cc.repertoire.v1';
 
@@ -63,7 +63,7 @@ export async function buildRepertoire(color, opts, onProgress, signal) {
       }
       queue.push({ fen: child(fen, mine.uci), ply: ply + 1 });
     } else {
-      const data = await explore(fen, { ratings: [myBand()] });
+      const data = await explore(fen, { ratings: myBands() });
       const n = total(data);
       if (!n) continue;
       const replies = [];

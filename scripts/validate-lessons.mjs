@@ -5,6 +5,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { Chess } from 'chess.js';
 import { ALL_EXERCISES, LESSONS } from '../src/lessons-data.js';
+import { OPENINGS } from '../src/openings.js';
 
 const SF = fileURLToPath(new URL('../node_modules/stockfish/bin/stockfish-19-lite-single.js', import.meta.url));
 
@@ -51,6 +52,10 @@ function startPosition(ex) {
 const eng = new UciEngine();
 await eng.init();
 let failures = 0;
+
+for (const o of OPENINGS) {
+  try { const c = new Chess(); for (const m of o.moves.split(/\s+/)) c.move(m); } catch (e) { failures++; console.log(`✘ ouverture ${o.name} : ${e.message}`); }
+}
 
 for (const l of LESSONS) {
   if (!l.example) continue;

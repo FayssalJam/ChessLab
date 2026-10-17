@@ -4,7 +4,7 @@ import { ALL_EXERCISES } from '../lessons-data.js';
 import { ExerciseRunner, exStats } from '../exercise.js';
 import { engine } from '../engine.js';
 import { scan } from '../scanner.js';
-import { settings } from '../settings.js';
+import { settings, myRating } from '../settings.js';
 import { START_FEN } from '../core.js';
 
 const LICHESS_THEMES = {
@@ -62,7 +62,7 @@ export const trainingPanel = {
         <h2>🤖 Partie coachée contre Stockfish</h2>
         <p class="small muted">Jouez à partir de la position actuelle de l'échiquier. Après chaque coup adverse, le coach vous dit s'il existe une opportunité tactique ou un danger, sans donner la réponse.</p>
         <div class="row">
-          <label class="small">Elo du moteur <input id="tr-elo" type="number" min="600" max="3000" step="50" value="${Math.max(800, settings.rating + 100)}" style="width:80px"></label>
+          <label class="small">Elo du moteur <input id="tr-elo" type="number" min="600" max="3000" step="50" value="${Math.max(800, myRating() + 100)}" style="width:80px"></label>
           <select id="tr-gcolor"><option value="w">Je joue les Blancs</option><option value="b">Je joue les Noirs</option></select>
           <label class="small"><input type="checkbox" id="tr-coach" checked> coach actif</label>
           <button id="tr-gstart" class="primary">Jouer</button><button id="tr-gstop">Abandonner</button>

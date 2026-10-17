@@ -1,7 +1,7 @@
 // Onglet « Mon répertoire » : construction automatique, arbre, export PGN, entraînement par répétition espacée.
 import { Chess } from 'chess.js';
 import { START_FEN } from '../core.js';
-import { settings, bandLabel, myBand, higherBands } from '../settings.js';
+import { settings, bandLabel, myBands, higherBands } from '../settings.js';
 import { buildRepertoire, treeOf, toPgn, clearRep, pickLine, lineId, srsUpdate, srsStats, linesOf } from '../repertoire.js';
 import { ExplorerError } from '../explorer.js';
 
@@ -26,7 +26,7 @@ export const repertoirePanel = {
           <h2 style="margin:0">Mon répertoire</h2>
           <select id="rp-color"><option value="w" ${this.color === 'w' ? 'selected' : ''}>avec les Blancs</option><option value="b" ${this.color === 'b' ? 'selected' : ''}>avec les Noirs</option></select>
         </div>
-        <p class="small muted">Arbre généré depuis Lichess : à votre tour, le coup qui marque le mieux chez les ${bandLabel(higherBands())} (et à votre niveau) ; au tour adverse, les réponses qui couvrent la majorité des parties à votre niveau (${bandLabel([myBand()])}).</p>
+        <p class="small muted">Arbre généré depuis Lichess : à votre tour, le coup qui marque le mieux chez les ${bandLabel(higherBands())} (et à votre niveau) ; au tour adverse, les réponses qui couvrent la majorité des parties à votre niveau (${bandLabel(myBands())}).</p>
         <details ${linesOf(this.color).length ? '' : 'open'}><summary><b>⚙ Construire / compléter automatiquement</b></summary>
           <div class="row" style="margin-top:8px">
             <label class="small">Profondeur (demi-coups) <input id="rp-ply" type="number" min="4" max="30" value="14" style="width:60px"></label>

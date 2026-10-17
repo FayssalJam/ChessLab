@@ -3,7 +3,7 @@ import { Chess } from 'chess.js';
 import { Board } from './board.js';
 import { START_FEN, safeChess, moveNumberPrefix } from './core.js';
 import { engine, fmtScore, scoreCp, winChance } from './engine.js';
-import { settings, saveSettings, SPEEDS, RATING_BANDS, myBand, higherBands, bandLabel } from './settings.js';
+import { settings, saveSettings, SPEEDS, rangeLabel } from './settings.js';
 import { explorerPanel } from './panels/explorer-panel.js';
 import { repertoirePanel } from './panels/repertoire-panel.js';
 import { analysisPanel } from './panels/analysis-panel.js';
@@ -202,10 +202,7 @@ $('#load-btn').onclick = () => {
 $('#settings-btn').onclick = () => {
   const d = $('#settings-dlg');
   d.innerHTML = `<h2>Réglages</h2>
-    <label>Mon Elo (Lichess)</label><input id="s-rating" type="number" min="400" max="3000" step="50" value="${settings.rating}">
-    <p class="small muted">Tranche « mon niveau » : <b id="s-band"></b> · « niveau supérieur » : <b id="s-high"></b></p>
-    <label>Niveau supérieur = combien de tranches au-dessus ?</label>
-    <select id="s-steps">${[1, 2, 3, 4].map((n) => `<option ${n === settings.higherSteps ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    <p class="small muted">Votre plage Elo (« mon niveau ») et le niveau cible se règlent directement avec les curseurs de l'onglet <b>Ouvertures</b> : actuellement <b>${rangeLabel(settings.myRange)}</b> et <b>${rangeLabel(settings.targetRange)}</b>.</p>
     <label>Cadences prises en compte</label>
     <div class="row">${SPEEDS.map((s) => `<label style="font-weight:400;margin:0"><input type="checkbox" value="${s}" ${settings.speeds.includes(s) ? 'checked' : ''} class="s-speed"> ${s}</label>`).join('')}</div>
     <label>Je joue principalement avec</label>
@@ -215,20 +212,9 @@ $('#settings-btn').onclick = () => {
     <label>Jeton d'API Lichess (optionnel)</label><input id="s-token" type="password" value="${settings.token}" placeholder="lip_…" style="width:100%">
     <p class="small muted">Si l'explorateur exige une connexion, créez un jeton sans permission sur lichess.org/account/oauth/token. Il reste dans votre navigateur.</p>
     <div class="row" style="justify-content:flex-end"><button class="primary" id="s-ok">Enregistrer</button></div>`;
-  const upd = () => {
-    const r = +$('#s-rating').value || 1500;
-    const steps = +$('#s-steps').value;
-    const i = RATING_BANDS.indexOf(myBand(r));
-    $('#s-band').textContent = bandLabel([myBand(r)]);
-    $('#s-high').textContent = bandLabel(RATING_BANDS.slice(i + 1, i + 1 + steps));
-  };
-  d.querySelectorAll('input,select').forEach((x) => (x.oninput = upd));
-  upd();
   d.showModal();
   $('#s-ok').onclick = () => {
     saveSettings({
-      rating: +$('#s-rating').value || 1500,
-      higherSteps: +$('#s-steps').value,
       speeds: [...d.querySelectorAll('.s-speed:checked')].map((x) => x.value),
       color: $('#s-color').value,
       minGames: +$('#s-min').value || 30,
@@ -237,7 +223,7 @@ $('#settings-btn').onclick = () => {
     });
     d.close();
     app.board.setOrientation(settings.color);
-    app.toast(`Réglages enregistrés : mon niveau ${bandLabel([myBand()])}, supérieur ${bandLabel(higherBands())}`);
+    app.toast('Réglages enregistrés');
     app.emit('position', app.fen());
   };
 };

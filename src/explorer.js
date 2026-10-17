@@ -1,6 +1,6 @@
 // Client de l'explorateur d'ouvertures Lichess (base de toutes les parties Lichess, filtrable par Elo).
 // Doc : https://lichess.org/api#tag/Opening-Explorer
-import { settings, myBand, higherBands, restore, store } from './settings.js';
+import { settings, myBands, higherBands, restore, store } from './settings.js';
 import { Chess } from 'chess.js';
 import { posKey } from './core.js';
 
@@ -9,6 +9,7 @@ const CACHE_KEY = 'cc.explorer.cache.v1';
 const MAX_CACHE = 2500;
 
 const cache = new Map(Object.entries(restore(CACHE_KEY, {})));
+const inflight = new Map();
 let saveTimer = null;
 function persist() {
   clearTimeout(saveTimer);
@@ -52,20 +53,31 @@ async function fetchJson(url) {
   throw new ExplorerError('Trop de requêtes, réessayez dans une minute.');
 }
 
-/**
- * Statistiques d'une position.
- * db : 'lichess' (filtrée par Elo/cadence) ou 'masters'.
- */
-export function explore(fen, { db = 'lichess', ratings, speeds = settings.speeds, moves = 15 } = {}) {
+function request(fen, { db = 'lichess', ratings, speeds = settings.speeds, moves = 15 } = {}) {
   const params = new URLSearchParams({ variant: 'standard', fen, moves: String(moves), topGames: '0', recentGames: '0' });
   if (db === 'lichess') {
-    params.set('ratings', (ratings || [myBand()]).join(','));
+    params.set('ratings', (ratings || myBands()).join(','));
     params.set('speeds', speeds.join(','));
   }
   const url = `${BASE}/${db}?${params}`;
   const key = db + '|' + posKey(fen) + '|' + params.get('ratings') + '|' + params.get('speeds') + '|' + moves;
+  return { url, key };
+}
+
+/** Données déjà en cache (sans requête réseau), ou null. */
+export function peek(fen, opts) {
+  return cache.get(request(fen, opts).key) || null;
+}
+
+/**
+ * Statistiques d'une position.
+ * db : 'lichess' (filtrée par Elo/cadence) ou 'masters'.
+ */
+export function explore(fen, opts = {}) {
+  const { url, key } = request(fen, opts);
   if (cache.has(key)) return Promise.resolve(cache.get(key));
-  return throttled(async () => {
+  if (inflight.has(key)) return inflight.get(key);
+  const p = throttled(async () => {
     const data = await fetchJson(url);
     const slim = {
       white: data.white, draws: data.draws, black: data.black,
@@ -75,7 +87,9 @@ export function explore(fen, { db = 'lichess', ratings, speeds = settings.speeds
     cache.set(key, slim);
     persist();
     return slim;
-  });
+  }).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
 }
 
 // Lichess note le roque « e1h1 » : on recalcule l'UCI standard à partir du SAN.
@@ -112,7 +126,7 @@ export async function compare(fen) {
   const color = fen.split(' ')[1];
   const hb = higherBands();
   const [my, high] = await Promise.all([
-    explore(fen, { ratings: [myBand()] }),
+    explore(fen, { ratings: myBands() }),
     hb.length ? explore(fen, { ratings: hb }) : Promise.resolve(null),
   ]);
   const byUci = new Map();
@@ -145,4 +159,26 @@ export async function compare(fen) {
     if (r.myShare < 0.1 && total(r.my) >= 15 && r.myScore >= 0.58) r.badges.push('weapon');
   }
   return { my, high, rows, best, color };
+}
+
+/**
+ * Coups candidats d'une position, enrichis (part, score, parties), triés selon le mode :
+ * 'popular' = les plus joués ; 'best' = meilleur score lissé parmi les coups assez joués.
+ */
+export function candidates(data, color, mode = 'popular') {
+  const n = total(data);
+  if (!n) return [];
+  const list = data.moves.map((m) => ({
+    ...m, games: total(m), share: total(m) / n, score: scoreFor(m, color), rank: smoothScore(m, color),
+  }));
+  const minGames = Math.min(settings.minGames, Math.max(5, n * 0.01));
+  const eligible = list.filter((m) => m.games >= minGames && m.share >= 0.02);
+  const best = eligible.sort((a, b) => b.rank - a.rank)[0];
+  for (const m of list) m.best = !!best && m.uci === best.uci;
+  if (mode === 'best') {
+    const strong = list.filter((m) => m.games >= minGames && m.share >= 0.02).sort((a, b) => b.rank - a.rank);
+    const rest = list.filter((m) => !strong.includes(m)).sort((a, b) => b.share - a.share);
+    return [...strong, ...rest];
+  }
+  return list.sort((a, b) => b.share - a.share);
 }

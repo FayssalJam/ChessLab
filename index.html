@@ -4,10 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ChessLab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">♞ ChessLab</div>
+    <div class="brand"><span class="logo">♞</span><span>Chess<span class="lab">Lab</span></span></div>
     <nav id="tabs">
       <button data-tab="explorer" class="active">Ouvertures</button>
       <button data-tab="repertoire">Mon répertoire</button>
@@ -21,7 +24,7 @@
   <main class="layout">
     <section class="board-col">
       <div id="board-wrap"><div id="board" class="cg-wrap"></div></div>
-      <div id="eval-bar"><div id="eval-fill"></div><span id="eval-text"></span></div>
+      <div id="eval-bar"><div id="eval-fill"></div></div><span id="eval-text"></span>
       <div class="controls">
         <button id="nav-start" title="Début">⏮</button>
         <button id="nav-prev" title="Précédent (←)">◀</button>
