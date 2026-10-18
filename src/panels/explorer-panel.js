@@ -10,7 +10,7 @@ import { OpeningTree } from '../tree-view.js';
 import { StudyView } from './study-view.js';
 import { findOpening } from '../study.js';
 import { OPENINGS, FAMILIES } from '../openings.js';
-import { QUALITY, qualityIndex, qualityBrush, prettySan, ACCENT, TARGET } from '../colors.js';
+import { QUALITY, qualityIndex, prettySan, ACCENT, TARGET, REL, REL_LABELS, REL_UNKNOWN, relColor, relBrush, relLabel } from '../colors.js';
 import { START_FEN } from '../core.js';
 
 const pct = (x) => (x == null ? '—' : Math.round(x * 100) + '%');
@@ -68,10 +68,9 @@ export const explorerPanel = {
           </div>
         </div>
         <div class="xp-legend">
-          <span><i class="lg-spine"></i>ligne jouée</span>
-          <span><i class="lg-grad"></i>score du coup pour celui qui le joue : faible → excellent</span>
-          <span><i class="lg-gold">★</i>meilleur score</span>
-          <span>taille = popularité · survol = détails · clic = jouer</span>
+          <div><b>Couleur</b> = résultat du coup <b>comparé aux autres coups de la même position</b>, pour le camp qui le joue :</div>
+          <div class="lg-line">${REL.map((c, i) => `<span><i class="lg-dot" style="--c:${c}"></i>${REL_LABELS[i]}</span>`).join('')}<span><i class="lg-dot lg-low" style="--c:${REL_UNKNOWN}"></i>trop peu de parties</span></div>
+          <div class="lg-line"><span><i class="lg-gold">★</i>meilleur résultat ici</span><span><b>taille et %</b> = popularité</span><span><i class="lg-spine"></i>ligne jouée</span><span>survol = détails · clic = jouer</span></div>
         </div>
       </div>
 
@@ -304,16 +303,16 @@ export const explorerPanel = {
       ${wdl}
       <div class="bubbles">${list.map((m) => {
         const size = 46 + Math.round(46 * Math.sqrt(m.share));
-        const c = QUALITY[qualityIndex(m.score)];
-        return `<button class="bubble${m.best ? ' best' : ''}${mine && mine.uci === m.uci ? ' mine' : ''}" data-san="${m.san}" data-uci="${m.uci}" style="--s:${size}px;--c:${c}" title="${m.games.toLocaleString('fr-FR')} parties · score ${pct(m.score)}">
+        const c = relColor(m.delta);
+        return `<button class="bubble${m.best ? ' best' : ''}${mine && mine.uci === m.uci ? ' mine' : ''}" data-san="${m.san}" data-uci="${m.uci}" style="--s:${size}px;--c:${c}" title="${m.games.toLocaleString('fr-FR')} parties · score ${pct(m.score)} (moyenne ici ${pct(m.posScore)}) : ${relLabel(m.delta)}">
           <span class="b-san">${prettySan(m.san)}</span><span class="b-pct">${pct(m.share)}</span>
           ${m.best ? '<span class="b-star">★</span>' : ''}
           <span class="b-score">${pct(m.score)}</span>
         </button>`;
       }).join('') || '<span class="muted">—</span>'}</div>
       <div class="muted small now-hint">${isMine
-        ? `À vous : ${mode === 'best' ? 'triés par score' : 'triés par popularité'}. ${list.find((m) => m.best) ? `Le meilleur score revient à <b>${prettySan(list.find((m) => m.best).san)}</b>.` : ''} Clic droit sur une bulle = l'ajouter à votre répertoire.`
-        : 'Coups que vos adversaires jouent ici : préparez-vous aux plus gros, et punissez ceux qui marquent peu (rouge).'}</div>`;
+        ? `À vous : ${mode === 'best' ? 'triés par résultat' : 'triés par popularité'}. ${list.find((m) => m.best) ? `Le meilleur résultat revient à <b>${prettySan(list.find((m) => m.best).san)}</b>.` : ''} Clic droit sur une bulle = l'ajouter à votre répertoire.`
+        : 'Coups que vos adversaires jouent ici : préparez-vous aux plus joués, et punissez ceux en rouge (ils marquent moins que les autres coups).'}</div>`;
     box.querySelectorAll('.bubble').forEach((b) => {
       b.onclick = () => this.app.play(b.dataset.san);
       b.oncontextmenu = (e) => {
@@ -333,9 +332,9 @@ export const explorerPanel = {
     if (my) {
       candidates(my, color, settings.arrowMode).slice(0, 3).forEach((m) => {
         shapes.push({
-          orig: m.uci.slice(0, 2), dest: m.uci.slice(2, 4), brush: qualityBrush(m.score),
+          orig: m.uci.slice(0, 2), dest: m.uci.slice(2, 4), brush: relBrush(m.delta),
           modifiers: { lineWidth: Math.round(5 + 13 * Math.sqrt(m.share)) },
-          label: { text: (m.best ? '★' : '') + pct(m.share), fill: QUALITY[qualityIndex(m.score)] },
+          label: { text: (m.best ? '★' : '') + pct(m.share), fill: relColor(m.delta) },
         });
       });
     }

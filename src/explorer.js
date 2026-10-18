@@ -238,20 +238,27 @@ export async function compare(fen) {
 
 /**
  * Coups candidats d'une position, enrichis (part, score, parties), triés selon le mode :
- * 'popular' = les plus joués ; 'best' = meilleur score lissé parmi les coups assez joués.
+ * 'popular' = les plus joués ; 'best' = meilleur résultat parmi les coups assez joués.
+ * delta = écart entre le score du coup et le score moyen de la position (pour le camp qui joue),
+ * lissé vers 0 pour les petits échantillons ; null quand il y a trop peu de parties pour juger.
+ * C'est lui qui donne la couleur et l'étoile ★, donc le meilleur coup est toujours le plus vert.
  */
 export function candidates(data, color, mode = 'popular') {
   const n = total(data);
   if (!n) return [];
-  const list = data.moves.map((m) => ({
-    ...m, games: total(m), share: total(m) / n, score: scoreFor(m, color), rank: smoothScore(m, color),
-  }));
+  const posScore = scoreFor(data, color);
   const minGames = Math.min(settings.minGames, Math.max(5, n * 0.01));
-  const eligible = list.filter((m) => m.games >= minGames && m.share >= 0.02);
+  const prior = 25;
+  const list = data.moves.map((m) => {
+    const games = total(m), score = scoreFor(m, color);
+    const delta = games >= minGames ? (score * games + posScore * prior) / (games + prior) - posScore : null;
+    return { ...m, games, share: games / n, score, posScore, delta, rank: delta ?? -1 };
+  });
+  const eligible = list.filter((m) => m.delta != null && m.share >= 0.02);
   const best = eligible.sort((a, b) => b.rank - a.rank)[0];
   for (const m of list) m.best = !!best && m.uci === best.uci;
   if (mode === 'best') {
-    const strong = list.filter((m) => m.games >= minGames && m.share >= 0.02).sort((a, b) => b.rank - a.rank);
+    const strong = list.filter((m) => m.delta != null && m.share >= 0.02).sort((a, b) => b.rank - a.rank);
     const rest = list.filter((m) => !strong.includes(m)).sort((a, b) => b.share - a.share);
     return [...strong, ...rest];
   }

@@ -3,7 +3,10 @@
 import { Chess } from 'chess.js';
 import { peek, explore, candidates, total, ExplorerError } from './explorer.js';
 import { settings } from './settings.js';
-import { QUALITY, qualityIndex, prettySan } from './colors.js';
+import { REL, REL_UNKNOWN, relIndex, relColor, relLabel, prettySan } from './colors.js';
+
+// Le tronc (ligne jouée) est blanc : le vert et le rouge sont réservés au verdict sur les coups.
+const TRUNK = '#e8ecf3';
 
 const COL_W = 64;
 const ROW_H = 78;
@@ -74,7 +77,7 @@ export class OpeningTree {
       const showAlts = i >= altFrom || i === idx;
       let kids = showAlts ? cands.slice(0, K) : [];
       if (played && !kids.some((m) => m.san === played)) {
-        const m = cands.find((x) => x.san === played) || { san: played, share: null, score: null, games: null };
+        const m = cands.find((x) => x.san === played) || { san: played, share: null, score: null, games: null, delta: null };
         kids = [m, ...kids.slice(0, showAlts ? K - 1 : 0)];
       }
       kids.sort((a, b) => (a.san === played ? -1 : b.san === played ? 1 : 0));
@@ -83,6 +86,7 @@ export class OpeningTree {
         const kind = m.san === played ? 'spine' : deep ? 'cand' : 'alt';
         const child = {
           san: m.san, fen: after(fen, m.san), depth: i + 1, kind, share: m.share, score: m.score, games: m.games,
+          delta: m.delta ?? null, posScore: m.posScore,
           best: m.best, wdl: m.white != null ? { w: m.white, d: m.draws, b: m.black } : null, avg: m.averageRating,
           mover: color, children: [],
           nav: m.san === played ? { idx: i + 1 } : { sans: [...baseSans, m.san] },
@@ -111,6 +115,7 @@ export class OpeningTree {
       sans.push(m.san);
       const child = {
         san: m.san, fen: after(cur.fen, m.san), depth: cur.depth + 1, kind: 'preview', share: m.share, score: m.score,
+        delta: m.delta ?? null, posScore: m.posScore,
         games: m.games, best: m.best, wdl: { w: m.white, d: m.draws, b: m.black }, avg: m.averageRating, mover: color,
         children: [], nav: { sans: [...sans] },
       };
@@ -201,7 +206,6 @@ export class OpeningTree {
     const { root, need } = this.build();
     const { nodes, width, height } = this.layout(root);
     const id = this.id;
-    const accent = this.opts.accent;
     const svg = document.createElementNS(SVGNS, 'svg');
     svg.setAttribute('width', width);
     svg.setAttribute('height', height);
@@ -214,10 +218,9 @@ export class OpeningTree {
         <filter id="${id}-shadow" x="-50%" y="-50%" width="200%" height="200%">
           <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity=".55"/>
         </filter>
-        ${sphere(`${id}-spine`, accent)}
         ${sphere(`${id}-root`, '#e5e7eb')}
-        ${sphere(`${id}-alt`, '#3b4252', true)}
-        ${QUALITY.map((c, i) => sphere(`${id}-q${i}`, c, true)).join('')}
+        ${sphere(`${id}-rx`, REL_UNKNOWN, true)}
+        ${REL.map((c, i) => sphere(`${id}-r${i}`, c, true, -0.28)).join('')}
       </defs>`;
     const gEdges = el('g'), gNodes = el('g');
     svg.append(gEdges, gNodes);
@@ -226,8 +229,8 @@ export class OpeningTree {
       const p = el('path');
       p.setAttribute('d', elbow(n.x, n.y, c.x, c.y));
       p.setAttribute('class', 'edge edge-' + c.kind);
-      if (c.kind === 'spine') { p.setAttribute('stroke', accent); p.setAttribute('filter', `url(#${id}-glow)`); }
-      else if (c.kind === 'cand') { p.setAttribute('stroke', QUALITY[qualityIndex(c.score)]); p.setAttribute('stroke-width', 2 + 6 * (c.share || 0)); }
+      if (c.kind === 'spine') { p.setAttribute('stroke', TRUNK); p.setAttribute('filter', `url(#${id}-glow)`); }
+      else if (c.kind === 'cand') { p.setAttribute('stroke', relColor(c.delta)); p.setAttribute('stroke-width', 2 + 6 * (c.share || 0)); }
       gEdges.append(p);
     }
 
@@ -241,11 +244,13 @@ export class OpeningTree {
       g.setAttribute('transform', `translate(${n.x},${n.y})`);
       g.style.setProperty('--d', (first ? i * 12 : 0) + 'ms');
       const r = this.radius(n);
-      const fill = n.kind === 'root' ? `${id}-root` : n.kind === 'spine' ? `${id}-spine` : n.kind === 'cand' || n.kind === 'preview' || n.kind === 'alt' ? (n.score != null ? `${id}-q${qualityIndex(n.score)}` : `${id}-alt`) : `${id}-alt`;
+      // Une seule règle de couleur pour tous les coups, y compris ceux de la ligne jouée.
+      const fill = n.kind === 'root' ? `${id}-root` : n.delta == null ? `${id}-rx` : `${id}-r${relIndex(n.delta)}`;
       let html = '';
-      if (n.current) html += `<circle r="${r + 9}" class="halo" stroke="${accent}"/>`;
+      if (n.current) html += `<circle r="${r + 9}" class="halo" stroke="${TRUNK}"/>`;
       html += `<circle r="${r}" fill="url(#${fill})" filter="url(#${id}-shadow)" class="ball"/>`;
-      if (n.kind === 'spine' || n.current) html += `<circle r="${r}" class="ring" stroke="${accent}"/>`;
+      if (n.kind === 'spine' || n.current) html += `<circle r="${r}" class="ring" stroke="${TRUNK}"/>`;
+      else if (n.kind !== 'root' && n.delta == null) html += `<circle r="${r}" class="low-ring"/>`;
       if (n.best && n.kind !== 'root') html += `<circle r="${r + 4}" class="best-ring"/><text class="star" y="${-r - 6}">★</text>`;
       const label = n.kind === 'root' ? '▲' : prettySan(n.san);
       const small = r < 19;
@@ -281,11 +286,15 @@ export class OpeningTree {
     const w = n.wdl, t = w ? w.w + w.d + w.b : 0;
     const bar = t ? `<div class="wdl-bar"><i class="w" style="flex:${w.w}"></i><i class="d" style="flex:${w.d}"></i><i class="b" style="flex:${w.b}"></i></div>
       <div class="wdl-legend"><span>${Math.round((w.w / t) * 100)}% blancs</span><span>${Math.round((w.d / t) * 100)}% nulles</span><span>${Math.round((w.b / t) * 100)}% noirs</span></div>` : '';
-    this.tip.innerHTML = `<b>${prettySan(n.san)}</b>${n.best ? ' <span class="gold">★ meilleur score</span>' : ''}
+    const side = n.mover === 'w' ? 'Blancs' : 'Noirs';
+    const pts = n.delta != null ? `${n.delta >= 0 ? '+' : '−'}${Math.abs(Math.round(n.delta * 1000) / 10)} pts · ` : '';
+    this.tip.innerHTML = `<b>${prettySan(n.san)}</b>${n.best ? ' <span class="gold">★ meilleur résultat ici</span>' : ''}
+      <div class="tip-verdict" style="--c:${relColor(n.delta)}">${pts}${relLabel(n.delta)}</div>
       <div class="tip-grid">
-        ${n.share != null ? `<span>Joué</span><b>${pct(n.share)}</b>` : ''}
+        ${n.share != null ? `<span>Joué</span><b>${pct(n.share)} des parties</b>` : ''}
         ${n.games != null ? `<span>Parties</span><b>${n.games.toLocaleString('fr-FR')}</b>` : ''}
-        ${n.score != null ? `<span>Score ${n.mover === 'w' ? 'Blancs' : 'Noirs'}</span><b style="color:${QUALITY[qualityIndex(n.score)]}">${pct(n.score)}</b>` : ''}
+        ${n.score != null ? `<span>Score ${side}</span><b>${pct(n.score)}</b>` : ''}
+        ${n.posScore != null ? `<span>Moyenne ici</span><b>${pct(n.posScore)}</b>` : ''}
         ${n.avg ? `<span>Elo moyen</span><b>${n.avg}</b>` : ''}
       </div>${bar}<div class="tip-hint">Cliquer pour jouer cette ligne</div>`;
     const box = this.el.getBoundingClientRect();
@@ -302,11 +311,11 @@ export class OpeningTree {
 function el(tag) { return document.createElementNS(SVGNS, tag); }
 
 /** Sphère 3D : dégradé radial avec reflet en haut à gauche. */
-function sphere(id, color, dark = false) {
+function sphere(id, color, dark = false, edge = -0.55) {
   return `<radialGradient id="${id}" cx="35%" cy="30%" r="75%">
     <stop offset="0%" stop-color="#ffffff" stop-opacity="${dark ? 0.55 : 0.9}"/>
     <stop offset="22%" stop-color="${color}" stop-opacity="1"/>
-    <stop offset="100%" stop-color="${shade(color, -0.55)}" stop-opacity="1"/>
+    <stop offset="100%" stop-color="${shade(color, edge)}" stop-opacity="1"/>
   </radialGradient>`;
 }
 function shade(hex, k) {

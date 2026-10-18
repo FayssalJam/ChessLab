@@ -10,6 +10,20 @@ export function qualityIndex(score) {
 export const qualityColor = (score) => QUALITY[qualityIndex(score)];
 export const qualityBrush = (score) => 'q' + qualityIndex(score);
 
+// Couleur relative (arbre d'ouverture, bulles, flèches) : le résultat d'un coup comparé aux autres coups
+// de la même position, pour le camp qui le joue. delta = score du coup − score moyen de la position.
+export const REL = ['#f0506e', '#f5976b', '#9aa3b5', '#7ddc9f', '#22c96f'];
+export const REL_UNKNOWN = '#4b5263';
+export const REL_LABELS = ['nettement moins bon', 'un peu moins bon', 'équivalent', 'un peu meilleur', 'nettement meilleur'];
+/** Indice 0..4 (rouge → vert), ou -1 si trop peu de parties pour juger. */
+export function relIndex(delta) {
+  if (delta == null) return -1;
+  return delta <= -0.04 ? 0 : delta <= -0.015 ? 1 : delta < 0.015 ? 2 : delta < 0.04 ? 3 : 4;
+}
+export const relColor = (delta) => (delta == null ? REL_UNKNOWN : REL[relIndex(delta)]);
+export const relBrush = (delta) => (delta == null ? 'rx' : 'r' + relIndex(delta));
+export const relLabel = (delta) => (delta == null ? 'trop peu de parties pour juger' : REL_LABELS[relIndex(delta)]);
+
 export const ACCENT = '#4ade80';
 export const TARGET = '#8b8cf8';
 export const GOLD = '#fbbf24';

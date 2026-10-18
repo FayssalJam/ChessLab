@@ -11,7 +11,10 @@ GET /status
 """
 import argparse
 import json
+import os
 import sqlite3
+import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -114,12 +117,26 @@ def main():
     p.add_argument('--port', type=int, default=8765)
     p.add_argument('--host', default='127.0.0.1')
     p.add_argument('--db', default=str(DEFAULT_DB))
+    p.add_argument('--watch-stdin', action='store_true', help='s\'arrêter quand stdin se ferme (processus parent disparu)')
     args = p.parse_args()
+    if args.watch_stdin:
+        def watch():
+            sys.stdin.buffer.read()  # bloque jusqu'à la fermeture du tuyau
+            os._exit(0)
+        threading.Thread(target=watch, daemon=True).start()
     DB_PATH = Path(args.db).resolve()
+    try:
+        server = ThreadingHTTPServer((args.host, args.port), Handler)
+    except OSError:
+        print(f'[base locale] port {args.port} déjà utilisé : un serveur tourne sans doute déjà.')
+        return
     code, info = status()
-    print(f'Base : {DB_PATH}' + (f" ({info.get('source')}, {info.get('games', 0):_} parties)".replace('_', ' ') if code == 200 else ' — absente pour le moment'))
-    print(f'Serveur prêt : http://{args.host}:{args.port}  (Ctrl+C pour arrêter)')
-    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
+    games = f"{info.get('games', 0):_}".replace('_', ' ') if code == 200 else ''
+    print(f"[base locale] http://{args.host}:{args.port} · " + (f"{info.get('source')}, {games} parties" if code == 200 else 'base absente : lancez build.py'), flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 // Plateau interactif (chessground) piloté par chess.js.
 import { Chessground } from 'chessground';
 import { Chess } from 'chess.js';
-import { QUALITY, TARGET } from './colors.js';
+import { QUALITY, TARGET, REL, REL_UNKNOWN } from './colors.js';
 import 'chessground/assets/chessground.base.css';
 import 'chessground/assets/chessground.cburnett.css';
 
@@ -39,6 +39,9 @@ export class Board {
           target: { key: 'tg', color: TARGET, opacity: 0.85, lineWidth: 9 },
           // Une brosse par niveau de qualité (rouge → vert) pour les flèches de l'explorateur
           ...Object.fromEntries(QUALITY.map((c, i) => ['q' + i, { key: 'q' + i, color: c, opacity: 0.88, lineWidth: 10 }])),
+          // Couleurs relatives de l'explorateur (comparé aux autres coups), et gris « trop peu de parties »
+          ...Object.fromEntries(REL.map((c, i) => ['r' + i, { key: 'r' + i, color: c, opacity: 0.88, lineWidth: 10 }])),
+          rx: { key: 'rx', color: REL_UNKNOWN, opacity: 0.8, lineWidth: 10 },
         },
       },
       movable: { free: false, showDests: true, events: { after: (o, d) => this._after(o, d) } },
