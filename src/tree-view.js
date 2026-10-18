@@ -46,6 +46,9 @@ export class OpeningTree {
     this.fetchMissing(gen);
   }
 
+  /** Arrête le chargement en arrière-plan (vue masquée). */
+  stop() { this.gen++; }
+
   q() { return { ratings: this.opts.ratings() }; }
 
   // --- Modèle -------------------------------------------------------------

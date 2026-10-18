@@ -397,3 +397,48 @@ dialog label { display: block; margin: 10px 0 3px; font-weight: 600; font-size: 
 .lv-cell.lv-top { border-color: var(--border-strong); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
 .lv-n { text-align: right; font-size: .8rem; white-space: nowrap; }
 .lv-wait { height: 34px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.09), rgba(255,255,255,.04)); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+
+/* --- Vue « Étudier » ------------------------------------------------------ */
+.xp-detect { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 18px; margin-bottom: 14px; border-color: rgba(74, 222, 128, .35); }
+.st-head { padding: 12px 18px; margin-bottom: 14px; }
+.st-head select { max-width: 100%; }
+.eco { font: 600 .75rem var(--mono); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; vertical-align: middle; }
+.st-stats { display: flex; gap: 18px; flex-wrap: wrap; }
+.st-stats div { display: flex; flex-direction: column; align-items: flex-end; }
+.st-stats b { font: 700 1.2rem var(--display); }
+.st-stats span { font-size: .75rem; color: var(--muted); }
+.st-idea { margin: 10px 0 0; }
+.st-plan { margin: 4px 0 0; padding-left: 20px; }
+.st-plan li { margin: 3px 0; }
+.st-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 18px; }
+.st-list { margin: 0; padding-left: 18px; }
+.st-list li { margin: 4px 0; }
+.st-progress { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
+.st-progress span { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.st-tree { margin-top: 10px; }
+.st-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 6px; border-radius: 8px; }
+.st-row:hover { background: rgba(255, 255, 255, .04); }
+summary.st-row { cursor: pointer; list-style: none; }
+summary.st-row::-webkit-details-marker { display: none; }
+summary.st-row::before { content: '▸'; color: var(--muted); width: 10px; transition: transform .15s; }
+details[open] > summary.st-row::before { transform: rotate(90deg); }
+.st-leaf { padding-left: 24px; }
+.st-first { margin-bottom: 4px; }
+.st-kids { margin-left: 14px; padding-left: 10px; border-left: 1px solid var(--border); }
+.st-mv { font: 600 .95rem var(--display); cursor: pointer; padding: 1px 8px; border-radius: 7px; white-space: nowrap; }
+.st-mv:hover { background: rgba(255, 255, 255, .1); }
+.st-mv.st-me { color: var(--gold); }
+.st-mv.cur { background: rgba(74, 222, 128, .22); box-shadow: inset 0 0 0 1px var(--accent); }
+.st-num { color: var(--muted); font-weight: 500; margin-right: 3px; }
+.st-share { width: 54px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.st-share i { display: block; height: 100%; background: var(--target); }
+.st-pct { font: 600 .8rem var(--mono); min-width: 34px; }
+.st-score { font: 600 .75rem var(--mono); white-space: nowrap; }
+.st-to { color: var(--muted); }
+.st-alts { font-size: .75rem; color: var(--muted); }
+.st-badge { font-size: .7rem; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.st-badge.bad { background: rgba(240, 80, 110, .15); color: var(--bad); }
+.st-badge.good { background: rgba(61, 220, 151, .15); color: var(--good); }
+.st-wait { color: var(--muted); font-size: .8rem; }
+.st-end { padding: 2px 6px 2px 24px; }

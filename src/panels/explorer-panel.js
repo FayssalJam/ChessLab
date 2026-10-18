@@ -7,6 +7,8 @@ import { settings, saveSettings, myBands, higherBands, rangeLabel, RATING_BANDS 
 import { setMine, mineAt } from '../repertoire.js';
 import { rangeSlider } from '../components/range-slider.js';
 import { OpeningTree } from '../tree-view.js';
+import { StudyView } from './study-view.js';
+import { findOpening } from '../study.js';
 import { OPENINGS, FAMILIES } from '../openings.js';
 import { QUALITY, qualityIndex, qualityBrush, prettySan, ACCENT, TARGET } from '../colors.js';
 import { START_FEN } from '../core.js';
@@ -27,6 +29,7 @@ export const explorerPanel = {
           <h2 class="xp-h">Explorateur d'ouvertures</h2>
           <div class="seg" id="xp-view">
             <button data-v="tree" class="on">🌳 Arbre</button>
+            <button data-v="study">🎯 Étudier</button>
             <button data-v="levels">📊 Par niveau</button>
             <button data-v="lib">📚 Bibliothèque</button>
           </div>
@@ -51,6 +54,7 @@ export const explorerPanel = {
       </div>
 
       <div id="xp-tree-view">
+        <div id="xp-detect"></div>
         <div class="glass xp-now" id="xp-now"></div>
         <div class="xp-trees" id="xp-trees">
           <div class="xp-tree-col" id="xp-col-target">
@@ -70,6 +74,8 @@ export const explorerPanel = {
           <span>taille = popularité · survol = détails · clic = jouer</span>
         </div>
       </div>
+
+      <div id="xp-study-view" style="display:none"></div>
 
       <div id="xp-levels-view" class="glass xp-now" style="display:none"></div>
 
@@ -110,6 +116,33 @@ export const explorerPanel = {
     };
     this.treeMy = new OpeningTree($('#xp-tree-my'), { ratings: myBands, accent: ACCENT, mirror: false, onNavigate: nav });
     this.treeTarget = new OpeningTree($('#xp-tree-target'), { ratings: higherBands, accent: TARGET, mirror: true, onNavigate: nav });
+    this.studyView = new StudyView($('#xp-study-view'), this.app);
+    $('#xp-detect').onclick = (e) => { if (e.target.closest('#xp-study-go')) this.studyHere(); };
+  },
+
+  /** Ouvre la vue « Étudier » sur l'ouverture jouée sur l'échiquier. */
+  studyHere() {
+    this.setView('study', false);
+    this.studyView.openHere(this.lichessOpening);
+  },
+
+  /** Bandeau « ouverture reconnue » au-dessus de l'arbre. */
+  renderDetect(opening) {
+    const box = this.el.querySelector('#xp-detect');
+    const { line, idx } = this.app;
+    const sans = line.slice(1, idx + 1).map((n) => n.san);
+    const o = line[0].fen === START_FEN ? findOpening(sans) : null;
+    this.lichessOpening = opening;
+    if (!sans.length || (!o && !opening)) { box.innerHTML = ''; return; }
+    // Nom français de la bibliothèque si la position est exactement l'ouverture, sinon le nom précis de Lichess.
+    const exact = o && o.moves.split(' ').length === sans.length;
+    const name = exact || !opening ? o.name : opening.name;
+    const eco = exact || !opening ? o.eco : opening.eco;
+    box.innerHTML = `<div class="glass xp-detect">
+      <div><span class="muted small">📖 Ouverture reconnue</span><div class="now-opening">${eco ? `<span class="eco">${eco}</span> ` : ''}${name}</div>
+      ${o ? `<div class="small muted">${o.idea}</div>` : ''}</div>
+      <button class="primary" id="xp-study-go">🎯 Étudier toutes les branches</button>
+    </div>`;
   },
 
   show() {
@@ -122,15 +155,19 @@ export const explorerPanel = {
   position() {
     if (this.view === 'tree') this.refreshTree();
     else if (this.view === 'levels') this.renderLevels();
+    else if (this.view === 'study') this.studyView.position();
   },
 
-  setView(v) {
+  setView(v, refresh = true) {
+    if (this.view === 'tree' && v !== 'tree') { this.treeMy.stop(); this.treeTarget.stop(); }
+    if (this.view === 'study' && v !== 'study') this.studyView.stop();
     this.view = v;
+    this.el.querySelector('#xp-study-view').style.display = v === 'study' ? '' : 'none';
     this.el.querySelectorAll('#xp-view button').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
     this.el.querySelector('#xp-tree-view').style.display = v === 'tree' ? '' : 'none';
     this.el.querySelector('#xp-levels-view').style.display = v === 'levels' ? '' : 'none';
     this.el.querySelector('#xp-lib-view').style.display = v === 'lib' ? '' : 'none';
-    this.refreshAll();
+    if (refresh) this.refreshAll();
   },
 
   refreshAll() {
@@ -145,6 +182,7 @@ export const explorerPanel = {
     $('#xp-trees').classList.toggle('compare', settings.compare);
     if (this.view === 'tree') this.refreshTree();
     else if (this.view === 'levels') this.renderLevels();
+    else if (this.view === 'study') this.studyView.show();
     else { this.app.setShapes([]); this.renderLib(); }
   },
 
@@ -245,6 +283,7 @@ export const explorerPanel = {
     const color = fen.split(' ')[1];
     const opening = (my && my.opening) || (target && target.opening);
     document.getElementById('opening-name').textContent = opening ? `${opening.eco} · ${opening.name}` : '';
+    this.renderDetect(opening);
     if (err) { box.innerHTML = `<div class="err">${err}</div><p class="muted small">L'explorateur a besoin d'internet (explorer.lichess.org). Le scanner, le moteur et les cours fonctionnent hors ligne.</p>`; return; }
     if (!my) { box.innerHTML = '<div class="skeleton"></div>'; return; }
     const n = total(my);
@@ -342,9 +381,8 @@ export const explorerPanel = {
         lastMove: [last.from, last.to], drawable: { enabled: false, visible: false },
       });
       card.onclick = () => {
-        this.app.board.setOrientation(o.side);
-        this.app.load(START_FEN, moves);
-        this.setView('tree');
+        this.setView('study', false);
+        this.studyView.open({ name: o.name, eco: o.eco, idea: o.idea, sans: moves, me: o.side });
       };
     }
     this.loadLibStats(list, box);

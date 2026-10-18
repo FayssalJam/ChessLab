@@ -2,7 +2,7 @@
 
 Application web pour progresser aux échecs :
 
-1. **Arbres d'ouvertures visuels.** Choisissez votre plage Elo avec un curseur (et un « niveau cible » à comparer). L'arbre pousse depuis la position de départ : la ligne jouée forme un tronc lumineux, chaque coup est une sphère dont la taille indique la popularité et la couleur le score obtenu. En mode comparaison, deux arbres en miroir montrent ce qui se joue à votre niveau et chez les plus forts. Sur l'échiquier, les 3 coups les plus joués (ou les meilleurs) s'affichent en flèches avec leur pourcentage, et vous jouez le coup de votre choix. Une **bibliothèque** de 34 ouvertures donne pour chacune un mini-échiquier, sa popularité et son score à votre niveau.
+1. **Arbres d'ouvertures visuels.** Choisissez votre plage Elo avec un curseur (et un « niveau cible » à comparer). L'arbre pousse depuis la position de départ : la ligne jouée forme un tronc lumineux, chaque coup est une sphère dont la taille indique la popularité et la couleur le score obtenu. En mode comparaison, deux arbres en miroir montrent ce qui se joue à votre niveau et chez les plus forts. Sur l'échiquier, les 3 coups les plus joués (ou les meilleurs) s'affichent en flèches avec leur pourcentage, et vous jouez le coup de votre choix. Une **bibliothèque** de 34 ouvertures donne pour chacune un mini-échiquier, sa popularité et son score à votre niveau. La vue **🎯 Étudier** prend une ouverture (choisie dans la liste, cliquée dans la bibliothèque, ou reconnue dès que vous la jouez) et affiche d'un coup toutes ses branches : chaque réponse adverse jouée à votre niveau, votre meilleur coup face à elle, les réponses à préparer en priorité (⚠), les erreurs adverses à punir (🎁), la ligne principale et le plan de pions de la structure. Un clic l'ajoute à « Mon répertoire ».
 2. **Répertoire automatique.** À votre tour, le coup qui marque le plus chez les plus forts. Au tour adverse, les réponses qui couvrent 80 % des parties à votre niveau. Export PGN et révision par répétition espacée.
 3. **Scanner de position.** Il repère tout de suite fourchettes, clouages, enfilades, découvertes, pièces en prise ou piégées, défenseurs surchargés, rangée arrière faible, roque affaibli, f7/f2 et mats en 1 (pour vous ET contre vous).
 4. **Plan de jeu.** Il reconnaît la structure de pions (pion isolé, Carlsbad, chaîne française, Est-indienne, Maroczy, Hérisson, Sicilienne ouverte, Stonewall, pions pendants, centre ouvert ou fermé) et dit **quoi faire avec vos pions** : ruptures, majorités, attaque de minorité, tempête de pions, avant-postes, faiblesses adverses et prophylaxie.
@@ -47,6 +47,7 @@ Dans l'onglet **Ouvertures**, réglez votre plage Elo (« Mon niveau ») et, si 
 | `src/openings.js` | bibliothèque des ouvertures |
 | `src/components/range-slider.js` | curseur double de plage Elo |
 | `src/lichess.js` | connexion OAuth Lichess (PKCE) et profil du joueur |
+| `src/study.js`, `src/panels/study-view.js` | étude d'une ouverture : reconnaissance, arbre complet réponse adverse → meilleur coup |
 | `src/explorer.js` | client de l'explorateur Lichess (cache, limite de débit, comparaison par niveau) |
 | `src/repertoire.js` | construction de l'arbre, export PGN, répétition espacée |
 | `src/engine.js` | Stockfish dans un Web Worker (MultiPV, Elo limité) |
