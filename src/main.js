@@ -4,6 +4,7 @@ import { Board } from './board.js';
 import { START_FEN, safeChess, moveNumberPrefix } from './core.js';
 import { engine, fmtScore, scoreCp, winChance } from './engine.js';
 import { settings, saveSettings, SPEEDS, rangeLabel, RATING_BANDS } from './settings.js';
+import { onExplorerStatus, checkLocalDb } from './explorer.js';
 import { login, logout, handleRedirect, cachedAccount, refreshAccount, mainRating } from './lichess.js';
 import { explorerPanel } from './panels/explorer-panel.js';
 import { repertoirePanel } from './panels/repertoire-panel.js';
@@ -12,6 +13,7 @@ import { lessonsPanel } from './panels/lessons-panel.js';
 import { trainingPanel } from './panels/training-panel.js';
 
 const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 class App {
   constructor() {
@@ -210,6 +212,8 @@ $('#settings-btn').onclick = () => {
     <select id="s-color"><option value="w" ${settings.color === 'w' ? 'selected' : ''}>les Blancs</option><option value="b" ${settings.color === 'b' ? 'selected' : ''}>les Noirs</option></select>
     <label>Minimum de parties pour recommander un coup</label><input id="s-min" type="number" min="5" max="1000" value="${settings.minGames}">
     <label>Profondeur d'analyse Stockfish</label><input id="s-depth" type="number" min="8" max="30" value="${settings.engineDepth}">
+    <label>Base locale de l'explorateur</label><input id="s-localdb" value="${esc(settings.localDb)}" placeholder="http://127.0.0.1:8765" style="width:100%">
+    <p class="small muted">Adresse du serveur <code>explorer-db/serve.py</code> (voir le README). Les positions qu'il connaît s'affichent tout de suite, les autres sont demandées à Lichess. Laissez vide pour toujours interroger Lichess.</p>
     <label>Jeton d'API Lichess (avancé)</label><input id="s-token" type="password" value="${settings.token}" placeholder="lip_…" style="width:100%">
     <p class="small muted">Rempli automatiquement par « Se connecter avec Lichess ». Vous pouvez aussi coller un jeton personnel sans permission (lichess.org/account/oauth/token). Il reste dans votre navigateur.</p>
     <div class="row" style="justify-content:flex-end"><button class="primary" id="s-ok">Enregistrer</button></div>`;
@@ -221,7 +225,9 @@ $('#settings-btn').onclick = () => {
       minGames: +$('#s-min').value || 30,
       engineDepth: +$('#s-depth').value || 18,
       token: $('#s-token').value.trim(),
+      localDb: $('#s-localdb').value.trim(),
     });
+    checkLocalDb(true);
     d.close();
     syncAccount();
     app.board.setOrientation(settings.color);
@@ -230,8 +236,32 @@ $('#settings-btn').onclick = () => {
   };
 };
 
+// --- Source des données d'ouverture (base locale, Lichess, pause imposée par Lichess) ---
+let chipTimer = null;
+function renderDbChip(st) {
+  const chip = $('#db-chip');
+  clearTimeout(chipTimer);
+  const wait = Math.ceil((st.waitUntil - Date.now()) / 1000);
+  if (wait > 0) {
+    chip.className = 'chip wait';
+    chip.textContent = `⏳ Limite Lichess · reprise dans ${wait} s`;
+    chip.title = 'Lichess limite le nombre de requêtes : le chargement reprend tout seul. La base locale évite ces pauses (voir le README).';
+    chipTimer = setTimeout(() => renderDbChip(st), 1000);
+  } else if (st.local) {
+    const l = st.local;
+    chip.className = 'chip local';
+    chip.textContent = `🗄 Base locale · ${l.source}`;
+    chip.title = `${(l.games || 0).toLocaleString('fr-FR')} parties, ${l.maxPly} premiers demi-coups (construite le ${String(l.built).slice(0, 10)}). Les positions absentes sont demandées à Lichess.`;
+  } else {
+    chip.className = 'chip';
+    chip.textContent = '☁ Lichess en direct';
+    chip.title = settings.localDb ? `Base locale injoignable (${settings.localDb}) : lancez explorer-db/serve.py pour un affichage instantané.` : 'Base locale désactivée dans les réglages.';
+  }
+}
+onExplorerStatus(renderDbChip);
+checkLocalDb();
+
 // --- Compte Lichess ---
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const PERFS = [['bullet', 'Bullet'], ['blitz', 'Blitz'], ['rapid', 'Rapide'], ['classical', 'Classique'], ['correspondence', 'Correspondance']];
 let account = cachedAccount();
 

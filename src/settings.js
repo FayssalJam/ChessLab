@@ -15,6 +15,7 @@ const DEFAULTS = {
   branches: 3,
   speeds: ['blitz', 'rapid', 'classical'],
   token: '',
+  localDb: 'http://127.0.0.1:8765', // base locale de l'explorateur (explorer-db/serve.py) ; '' pour la désactiver
   color: 'w',
   minGames: 30,
   engineDepth: 18,

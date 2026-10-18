@@ -1,22 +1,85 @@
 // Client de l'explorateur d'ouvertures Lichess (base de toutes les parties Lichess, filtrable par Elo).
 // Doc : https://lichess.org/api#tag/Opening-Explorer
-import { settings, myBands, higherBands, restore, store } from './settings.js';
+// Ordre de recherche : mémoire → cache IndexedDB → base locale (explorer-db/serve.py) → Lichess en direct.
+import { settings, myBands, higherBands, restore } from './settings.js';
 import { Chess } from 'chess.js';
 import { posKey } from './core.js';
+import { idbGet, idbSet, idbSetMany, idbPrune } from './idb-cache.js';
 
 const BASE = 'https://explorer.lichess.org';
-const CACHE_KEY = 'cc.explorer.cache.v1';
-const MAX_CACHE = 2500;
+const OLD_CACHE_KEY = 'cc.explorer.cache.v1';
+const MAX_MEMORY = 6000;
 
-const cache = new Map(Object.entries(restore(CACHE_KEY, {})));
+const cache = new Map();
 const inflight = new Map();
-let saveTimer = null;
-function persist() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    while (cache.size > MAX_CACHE) cache.delete(cache.keys().next().value);
-    store(CACHE_KEY, Object.fromEntries(cache));
-  }, 500);
+function remember(key, data) {
+  cache.delete(key);
+  cache.set(key, data);
+  if (cache.size > MAX_MEMORY) cache.delete(cache.keys().next().value);
+}
+
+// Ancien cache (localStorage, limité à quelques Mo) : on le reprend dans IndexedDB puis on libère la place.
+{
+  const old = restore(OLD_CACHE_KEY, null);
+  if (old) {
+    const entries = Object.entries(old);
+    for (const [k, d] of entries) remember(k, d);
+    idbSetMany(entries).then(() => { try { localStorage.removeItem(OLD_CACHE_KEY); } catch { /* ignore */ } });
+  }
+  idbPrune();
+}
+
+// --- État affiché dans la barre du haut (base locale, attente imposée par Lichess) ---
+export const explorerStatus = { local: null, waitUntil: 0 };
+const statusListeners = new Set();
+export function onExplorerStatus(cb) {
+  statusListeners.add(cb);
+  cb(explorerStatus);
+  return () => statusListeners.delete(cb);
+}
+function setStatus(patch) {
+  Object.assign(explorerStatus, patch);
+  for (const cb of statusListeners) cb(explorerStatus);
+}
+
+// --- Base locale ---
+// Construite chaque mois depuis le dump Lichess (voir explorer-db/). Si elle ne répond pas, on la
+// redemande au bout de 30 s ; une position absente (trop profonde ou trop rare) part chez Lichess.
+let localCheck = null;
+let localCheckedAt = 0; // 0 = vérification en cours
+let localUrl = null;
+export function checkLocalDb(force = false) {
+  const url = (settings.localDb || '').replace(/\/+$/, '');
+  if (!url) { setStatus({ local: null }); return Promise.resolve(false); }
+  const maxAge = explorerStatus.local ? 300000 : 30000;
+  const fresh = localCheckedAt === 0 || Date.now() - localCheckedAt < maxAge;
+  if (localCheck && url === localUrl && fresh && !force) return localCheck;
+  localUrl = url;
+  localCheckedAt = 0;
+  localCheck = (async () => {
+    try {
+      const res = await fetch(url + '/status', { signal: AbortSignal.timeout(1500) });
+      const info = res.ok ? await res.json() : null;
+      setStatus({ local: info ? { ...info, url } : null });
+    } catch {
+      setStatus({ local: null });
+    }
+    localCheckedAt = Date.now();
+    return !!explorerStatus.local;
+  })();
+  return localCheck;
+}
+
+async function fetchLocal(path) {
+  if (!(await checkLocalDb())) return null;
+  try {
+    const res = await fetch(explorerStatus.local.url + path, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) return res.json();
+    if (res.status === 503) checkLocalDb(true);
+  } catch {
+    checkLocalDb(true);
+  }
+  return null; // 404 = position absente de la base locale
 }
 
 // File d'attente : une requête à la fois, ~4 par seconde max (respect des limites Lichess).
@@ -45,7 +108,13 @@ async function fetchJson(url) {
     } catch (e) {
       throw new ExplorerError("Impossible de joindre l'explorateur Lichess (réseau ou blocage CORS).");
     }
-    if (res.status === 429) { await new Promise((r) => setTimeout(r, 61000)); continue; }
+    if (res.status === 429) {
+      // Lichess impose une minute de pause : on l'affiche au lieu d'attendre en silence.
+      setStatus({ waitUntil: Date.now() + 61000 });
+      await new Promise((r) => setTimeout(r, 61000));
+      setStatus({ waitUntil: 0 });
+      continue;
+    }
     if (res.status === 401 || res.status === 403) throw new ExplorerError("L'explorateur Lichess demande une connexion : cliquez sur « Se connecter avec Lichess » en haut à droite.");
     if (!res.ok) throw new ExplorerError(`Erreur explorateur ${res.status}`);
     return res.json();
@@ -59,9 +128,9 @@ function request(fen, { db = 'lichess', ratings, speeds = settings.speeds, moves
     params.set('ratings', (ratings || myBands()).join(','));
     params.set('speeds', speeds.join(','));
   }
-  const url = `${BASE}/${db}?${params}`;
+  const path = `/${db}?${params}`;
   const key = db + '|' + posKey(fen) + '|' + params.get('ratings') + '|' + params.get('speeds') + '|' + moves;
-  return { url, key };
+  return { url: BASE + path, path, key };
 }
 
 /** Données déjà en cache (sans requête réseau), ou null. */
@@ -74,20 +143,26 @@ export function peek(fen, opts) {
  * db : 'lichess' (filtrée par Elo/cadence) ou 'masters'.
  */
 export function explore(fen, opts = {}) {
-  const { url, key } = request(fen, opts);
+  const { url, path, key } = request(fen, opts);
   if (cache.has(key)) return Promise.resolve(cache.get(key));
   if (inflight.has(key)) return inflight.get(key);
-  const p = throttled(async () => {
-    const data = await fetchJson(url);
-    const slim = {
-      white: data.white, draws: data.draws, black: data.black,
-      opening: data.opening || null,
-      moves: normalizeMoves(fen, data.moves || []),
-    };
-    cache.set(key, slim);
-    persist();
-    return slim;
-  }).finally(() => inflight.delete(key));
+  const slim = (data, source) => ({
+    white: data.white, draws: data.draws, black: data.black,
+    opening: data.opening || null,
+    moves: normalizeMoves(fen, data.moves || []),
+    source,
+  });
+  const p = (async () => {
+    const stored = await idbGet(key);
+    if (stored) { remember(key, stored); return stored; }
+    // La base locale n'est pas mise dans IndexedDB : elle répond en quelques ms et change chaque mois.
+    const local = (opts.db || 'lichess') === 'lichess' ? await fetchLocal(path) : null;
+    if (local) { const d = slim(local, 'local'); remember(key, d); return d; }
+    const d = slim(await throttled(() => fetchJson(url)), 'lichess');
+    remember(key, d);
+    idbSet(key, d);
+    return d;
+  })().finally(() => inflight.delete(key));
   inflight.set(key, p);
   return p;
 }

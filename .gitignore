@@ -1,3 +1,11 @@
 node_modules/
 dist/
 .DS_Store
+
+# Base locale de l'explorateur (reconstruite chaque mois)
+explorer-db/.venv/
+explorer-db/*.sqlite
+explorer-db/*.sqlite.tmp
+explorer-db/chesslab-db-*/
+explorer-db/build.log
+__pycache__/
